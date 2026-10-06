@@ -1304,3 +1304,123 @@ curl -u finance:finance123 -H 'Content-Type: application/json' -X POST \
 （1740×30%=522）逐单输出“新增扣罚”解释、净差异 -722.00 可对账；争议进入待复核时
 审核被拦截，财务复核“不计入”后应付重算回基础运费、原扣罚金额仍保留，审核冻结后
 再次回放差异恒 0、且不能重新生成结算。全套 75 个用例通过。
+
+## 冷链运输 V15：承运商服务评分（四指标取证 · 不可变快照 · 申诉复核 · 改进任务）
+
+按评分周期（按月）对每家承运商的冷链药品运输服务评分。四项指标分别取证：
+**准时率 / 温控合格率 / 签收完整度 / 异常响应**；周期结束生成**不可变快照**；
+承运商只能查看自己的指标与申诉入口；申诉期间原分不回写；复核结论必须关联证据并
+产生改进任务；任务逾期自动提醒负责人；评分规则调整版本化、只影响下一周期；
+**冷链药品运输外部依赖（温控监测平台）无响应时评分指标绝不假装成功，恢复后也不重复通知。**
+
+### 数据模型与口径
+
+| 表 | 作用 |
+| --- | --- |
+| `t_cc_score_rule` | 评分规则版本（四指标权重合计 100、准时宽限、申诉期、改进期限）；DRAFT/EFFECTIVE/SUPERSEDED |
+| `t_cc_score_period` | 评分周期（`yyyyMM`）；**创建瞬间绑定当时生效规则版本**，期内取证永远按绑定版本 |
+| `t_cc_score_snapshot` | 周期关闭时每承运商一条**不可变快照**：四指标分、总分、规则/分数 JSON、SHA-256 摘要 |
+| `t_cc_score_metric_evidence` | 每快照四行逐项取证：分子/分母/逐批取值明细 JSON、来源表锚点、取证时刻 |
+| `t_cc_score_close_attempt` | 关闭尝试留痕：`BLOCKED`（外部依赖阻断原因）/ `CLOSED`（快照数），逐次一行 |
+| `t_cc_score_appeal` / `_evidence` / `_review` | 申诉单（申诉期内）、申诉证据（只追加）、复核结论（**必须引用证据**，只追加） |
+| `t_cc_improvement_task` | 复核结论产生的改进任务：负责人/截止时间，完成只追加 `finish*` |
+| `t_cc_carrier_account` | 承运商登录账号 ↔ 承运商主档绑定；承运口径强制按 `carrier_id` 隔离 |
+| `t_cc_score_notify_state` / `_attempt` | 通知去重状态（成功一次置位）+ 每次尝试留痕（失败记原因） |
+
+四指标取证口径（每个指标独立给分子/分母，指标分 = 100×分子/分母，总分按绑定版本权重加权）：
+
+- **准时率 ON_TIME**：实际签收时间不晚于 `committed_arrival_time + 准时宽限`；
+  历史批次缺承诺时间不可判定则剔除分母并在明细留痕（不算违约也不算准时）。
+- **温控合格率 TEMP_CONTROL**：**以外部温控监测平台客观判定为准**（合格/不合格逐批返回），
+  内部 `t_cc_temp_alert`/`has_temp_excursion` 仅作交叉锚点；平台必须覆盖全部批次，
+  覆盖不了整个周期关闭就阻断。
+- **签收完整度 SIGN_INTEGRITY**：无收货拒签异常、无回执数量不符、无两份签收冲突冻结、
+  无人工签收修正，即达标。
+- **异常响应 EXCEPTION_RESPONSE**：系统客观成立（AUTO，即确认）的异常天然达标；
+  人工补录（MANUAL）异常必须在其快照响应时限内确认（`confirm_time ≤ found_time + response_minutes_snap`）。
+
+### 外部依赖无响应：不假装成功、恢复不重复通知
+
+1. 周期关闭前先 `GET {base-url}/health`；无响应/超时/非 2xx/地址未配置 → 本次关闭 **BLOCKED**，
+   周期保持 OPEN，**不产出任何快照、不给任何指标默认成功/满分**，`t_cc_score_close_attempt`
+   记录阻断原因，定时任务下轮继续尝试。
+2. 取数 `POST {base-url}/temp-verdicts` 返回缺任一批次判定同样阻断（先整体校验覆盖度再写快照，
+   不会出现部分承运商已落快照）。
+3. 阻断告警按周期去重：同一周期成功告警只发一次；依赖持续不可用、恢复后成功关闭，
+   **都不补告、不重复通知**；webhook 投递失败逐次留 `fail_reason`，下轮重试到成功一次为止。
+4. 改进任务逾期提醒同一口径：同一任务成功提醒一次后，再扫描/依赖恢复都不重复。
+
+配置项：`coldchain.temp-monitor.base-url`（空=视为不可用，拒绝自评满分）、
+`coldchain.temp-monitor.connect-timeout-ms/read-timeout-ms`、
+`coldchain.score-notify.endpoint`（空=站内信必达；非空=webhook，可失败重试）、
+`coldchain.score-cycle.enabled`（关闭后台定时器，测试直调服务）。
+
+### 接口一览
+
+管理侧（`/api/cold-chain/scores`，全量查看需 `coldchain:score:view:all`）：
+
+| 方法/路径 | 权限 | 说明 |
+| --- | --- | --- |
+| `GET /rules` `POST /rules/publish` | view:all / rule:manage | 规则版本列表、发布新版本（热替换，只影响下一周期） |
+| `GET /periods` `POST /periods/close-scan` `POST /periods/{id}/close` | view:all / close | 周期列表、扫描关闭全部到期周期、关闭单周期 |
+| `GET /periods/{id}/close-attempts` | view:all | 阻断/成功关闭尝试留痕 |
+| `GET /snapshots?periodId=` `GET /snapshots/{id}` | view:all | 全量快照与四指标逐项取证 |
+| `GET /appeals/pending` `GET /appeals` `POST /appeals/reviews` | appeal:review（QA） | 待复核/全部申诉、复核结论（必须关联证据） |
+| `GET /tasks` | view:all | 改进任务督办 |
+
+承运商自助侧（`/api/cold-chain/my-scores`，需 `coldchain:score:carrier:self`，服务层再按绑定企业强制过滤）：
+
+| 方法/路径 | 说明 |
+| --- | --- |
+| `GET /snapshots` `GET /snapshots/{id}` | 只看本企业快照与逐项取证（跨企业 ID 被服务层拒绝） |
+| `POST /appeals` `POST /appeals/evidences` `GET /appeals` `GET /appeals/{id}` | 申诉入口：期内按指标申诉、追加证据、查看本企业申诉与原分/并列修正 |
+| `GET /tasks` `POST /tasks/finish` | 本企业改进任务与完成确认 |
+
+内置账号：`admin`（规则维护/关闭/全量）、`dispatcher`（全量查看/关闭）、`qa`（全量查看/申诉复核）、
+`carrier`（绑定 华东冰链物流 CY100000001，自助+申诉+完成任务）、
+`carrier2`（绑定 沪杭鲜冷运输 CY100000002，用于跨企业隔离验收）。
+
+```bash
+# 规则调整发布新版本（权重 40/20/20/20）；已存在周期绑定旧版本不变，只影响下一周期
+curl -u admin:admin123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/scores/rules/publish -d \
+  '{"versionName":"准时率优先 V2","onTimeWeight":40,"tempControlWeight":20,
+    "signIntegrityWeight":20,"exceptionResponseWeight":20,"appealOpenDays":7,
+    "improvementDueDays":7,"changeReason":"提高准时率权重"}'
+
+# 周期结束后扫描关闭（外部平台无响应时返回 BLOCKED 与原因，不产出快照）
+curl -u dispatcher:dispatcher123 -X POST \
+  http://localhost:8080/api/cold-chain/scores/periods/close-scan
+
+# 承运商查看本企业快照与四指标取证（用别的承运商账号访问同一 snapshotId 会被拒绝）
+curl -u carrier:carrier123 http://localhost:8080/api/cold-chain/my-scores/snapshots
+# 期内对某指标申诉（原分不回写）
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/my-scores/appeals -d \
+  '{"snapshotId":1,"metricCode":"ON_TIME","reason":"承诺时段高速封闭管制，附通告，申请剔除该批次"}'
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/my-scores/appeals/evidences -d \
+  '{"appealId":1,"fileName":"road-closure.pdf","fileUrl":"/v15/road-closure.pdf","note":"交警封闭通告"}'
+# QA 复核：必须关联证据；成立给并列修正分（快照原分不变）并产生改进任务
+curl -u qa:qa123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/scores/appeals/reviews -d @- <<'JSON'
+{"appealId":1,"approved":true,"reviewNote":"管制不可归责承运商，申诉成立",
+ "evidenceIds":[1],"adjustedMetricScore":100.00,
+ "adjustNote":"准时率并列修正为100，原快照50分保留","improvementContent":"完善路况提前报备机制"}
+JSON
+# 承运商完成改进任务（逾期未完成会被自动提醒负责人，只提醒一次）
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/my-scores/tasks/finish -d \
+  '{"taskId":1,"finishNote":"已完成报备机制改造与司机培训，记录存档"}'
+```
+
+### V15 验收
+
+`CarrierScoreIntegrationTest`（5 个用例，各用独立月份周期避免共享内存库互相干扰）覆盖：
+四指标逐项取证（分子分母/逐批明细可复算、温控取外部平台口径）与不可变快照
+（SHA-256 可重算、重复关闭不新增）；规则发布新版本后旧周期快照仍按绑定版本、下一周期绑新版本；
+外部平台无响应与返回缺批次两种情况都 **BLOCKED 不产出快照**，恢复后关闭且阻断告警始终只有
+1 条尝试记录（不补告不重复）；承运商账号只看本企业快照/申诉/任务（跨企业服务层拒绝、
+全量接口承运 403、未认证 401）；申诉提交后快照原分与摘要不变，复核不关联证据或引用他人证据
+被拒、QA 外角色 HTTP 403，成立时并列修正总分按绑定权重计算并产生归属正确的改进任务；
+改进任务逾期 webhook 前两次失败逐次留痕、第三次成功，之后无论再扫描多少次都不再重复通知。

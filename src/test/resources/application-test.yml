@@ -25,3 +25,6 @@ coldchain:
     enabled: false
   quote-expire:
     enabled: false
+  # V15：承运商评分周期关闭/改进任务逾期提醒（直调服务模拟扫描，关闭后台定时器避免并发干扰）
+  score-cycle:
+    enabled: false

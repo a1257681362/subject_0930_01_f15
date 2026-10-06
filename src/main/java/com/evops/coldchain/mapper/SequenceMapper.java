@@ -69,4 +69,10 @@ public interface SequenceMapper {
 
     @Select("SELECT NEXT VALUE FOR seq_cc_replay_no")
     Long nextReplayNo();
+
+    @Select("SELECT NEXT VALUE FOR seq_cc_appeal_no")
+    Long nextAppealNo();
+
+    @Select("SELECT NEXT VALUE FOR seq_cc_improve_task_no")
+    Long nextImproveTaskNo();
 }

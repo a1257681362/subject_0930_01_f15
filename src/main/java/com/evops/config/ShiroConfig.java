@@ -333,6 +333,26 @@ public class ShiroConfig {
         chain.addPathDefinition("/ui/cold-chain/settlements",
                 "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_FREIGHT_SETTLE_VIEW + "]");
 
+        // —— V15 承运商服务评分（具体写路径在前，宽泛只读在后）——
+        // 管理侧：规则发布（管理员）/ 周期关闭（运营、管理员）/ 申诉复核（QA）/ 全量台账（管理口径）
+        chain.addPathDefinition("/api/cold-chain/scores/rules/publish",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_RULE_MANAGE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/rules",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_VIEW_ALL + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/periods/close-scan",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_CLOSE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/periods/*/close",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_CLOSE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/appeals/pending",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_APPEAL_REVIEW + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/appeals/reviews",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_APPEAL_REVIEW + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_VIEW_ALL + "]");
+        // 承运商自助侧：承运账号只能访问本企业评分视图/取证/申诉入口（服务层再按绑定 carrierId 强制隔离）
+        chain.addPathDefinition("/api/cold-chain/my-scores/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_CARRIER_SELF + "]");
+
         // 冷链台账接口与管理页面使用 HTTP Basic，便于 curl/联调；浏览器会弹出登录框
         chain.addPathDefinition("/api/**", "authcBasic");
         chain.addPathDefinition("/ui/**", "authcBasic");

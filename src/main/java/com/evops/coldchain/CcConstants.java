@@ -695,4 +695,72 @@ public final class CcConstants {
     public static final String PERM_FREIGHT_SETTLE_AUDIT = "coldchain:freight:settle:audit";
     /** 旧数据回放（运营/财务；按新版本模拟并解释差异） */
     public static final String PERM_FREIGHT_REPLAY = "coldchain:freight:replay";
+
+    // —— V15 承运商服务评分 ——
+    /** 评分指标代码：准时率 */
+    public static final String METRIC_ON_TIME = "ON_TIME";
+    /** 温控合格率 */
+    public static final String METRIC_TEMP_CONTROL = "TEMP_CONTROL";
+    /** 签收完整度 */
+    public static final String METRIC_SIGN_INTEGRITY = "SIGN_INTEGRITY";
+    /** 业务异常响应 */
+    public static final String METRIC_EXCEPTION_RESPONSE = "EXCEPTION_RESPONSE";
+    public static final java.util.List<String> METRIC_ALL = java.util.Arrays.asList(
+            METRIC_ON_TIME, METRIC_TEMP_CONTROL, METRIC_SIGN_INTEGRITY, METRIC_EXCEPTION_RESPONSE);
+
+    /** 评分周期状态：OPEN 取证开放中 / CLOSED 已关闭冻结 */
+    public static final String SCORE_PERIOD_OPEN = "OPEN";
+    public static final String SCORE_PERIOD_CLOSED = "CLOSED";
+    /** 评分规则版本状态：草稿/生效中/被替换（复用 DRAFT/EFFECTIVE/SUPERSEDED） */
+    /** 关闭尝试结果：BLOCKED 外部依赖阻断未关闭 / CLOSED 成功关闭 */
+    public static final String CLOSE_BLOCKED = "BLOCKED";
+    public static final String CLOSE_CLOSED = "CLOSED";
+    /** 关闭/提醒触发方式：SCHEDULED 定时 / MANUAL 手动 */
+    public static final String TRIGGER_SCHEDULED = "SCHEDULED";
+    public static final String TRIGGER_MANUAL = "MANUAL";
+
+    /** 申诉状态：SUBMITTED 待复核 / APPROVED 成立 / REJECTED 驳回 */
+    public static final String APPEAL_SUBMITTED = "SUBMITTED";
+    // APPROVED / REJECTED 复用 REVIEW_APPROVED / REVIEW_REJECTED
+    /** 改进任务状态：OPEN 待整改 / DONE 已完成 */
+    public static final String IMPROVE_OPEN = "OPEN";
+    public static final String IMPROVE_DONE = "DONE";
+
+    /** 通知业务类型：PERIOD_BLOCKED 周期取证阻断告警 / TASK_OVERDUE 任务逾期提醒 */
+    public static final String SCORE_NOTIFY_PERIOD_BLOCKED = "PERIOD_BLOCKED";
+    public static final String SCORE_NOTIFY_TASK_OVERDUE = "TASK_OVERDUE";
+
+    // V15 操作日志实体类型
+    public static final String ENT_SCORE_RULE = "SCORE_RULE";
+    public static final String ENT_SCORE_PERIOD = "SCORE_PERIOD";
+    public static final String ENT_SCORE_SNAPSHOT = "SCORE_SNAPSHOT";
+    public static final String ENT_SCORE_APPEAL = "SCORE_APPEAL";
+    public static final String ENT_SCORE_IMPROVE_TASK = "SCORE_IMPROVEMENT_TASK";
+
+    // V15 操作动作
+    public static final String ACT_SCORE_RULE_PUBLISH = "SCORE_RULE_PUBLISH";
+    public static final String ACT_SCORE_PERIOD_ENSURE = "SCORE_PERIOD_ENSURE";
+    public static final String ACT_SCORE_CLOSE_ATTEMPT = "SCORE_CLOSE_ATTEMPT";
+    public static final String ACT_SCORE_CLOSE = "SCORE_CLOSE";
+    public static final String ACT_SCORE_APPEAL_SUBMIT = "SCORE_APPEAL_SUBMIT";
+    public static final String ACT_SCORE_APPEAL_REVIEW = "SCORE_APPEAL_REVIEW";
+    public static final String ACT_SCORE_IMPROVE_CREATE = "SCORE_IMPROVEMENT_CREATE";
+    public static final String ACT_SCORE_IMPROVE_FINISH = "SCORE_IMPROVEMENT_FINISH";
+    public static final String ACT_SCORE_NOTIFY = "SCORE_NOTIFY";
+
+    // —— V15 Shiro 权限点 ——
+    /** 评分规则维护（起草/发布新版本；调整只影响下一周期） */
+    public static final String PERM_SCORE_RULE_MANAGE = "coldchain:score:rule:manage";
+    /** 全量评分台账查看（管理侧：全部承运商） */
+    public static final String PERM_SCORE_VIEW_ALL = "coldchain:score:view:all";
+    /** 承运商侧：只看本企业指标/取证与申诉入口，跨企业访问拒绝 */
+    public static final String PERM_SCORE_CARRIER_SELF = "coldchain:score:carrier:self";
+    /** 申诉提交（承运商；提交后原分不回写） */
+    public static final String PERM_SCORE_APPEAL_SUBMIT = "coldchain:score:appeal:submit";
+    /** 申诉复核（QA；结论必须关联证据并产生改进任务） */
+    public static final String PERM_SCORE_APPEAL_REVIEW = "coldchain:score:appeal:review";
+    /** 改进任务完成确认 */
+    public static final String PERM_SCORE_TASK_FINISH = "coldchain:score:task:finish";
+    /** 周期手动关闭/扫描（管理员） */
+    public static final String PERM_SCORE_CLOSE = "coldchain:score:close";
 }
