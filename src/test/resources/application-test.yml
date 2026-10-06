@@ -25,3 +25,5 @@ coldchain:
     enabled: false
   quote-expire:
     enabled: false
+  score-remind:
+    enabled: false

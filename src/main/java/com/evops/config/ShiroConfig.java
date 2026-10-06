@@ -333,6 +333,39 @@ public class ShiroConfig {
         chain.addPathDefinition("/ui/cold-chain/settlements",
                 "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_FREIGHT_SETTLE_VIEW + "]");
 
+        // —— V15 承运商服务评分（写路径在前、宽泛只读在后）——
+        // 评分规则维护（admin；调整只影响下一周期）
+        chain.addPathDefinition("/api/cold-chain/scores/rules/draft",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_RULE_MANAGE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/rules/*/publish",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_RULE_MANAGE + "]");
+        // 评分周期开立/关闭（admin；关闭生成不可变快照）
+        chain.addPathDefinition("/api/cold-chain/scores/periods",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_PERIOD_MANAGE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/periods/*/close",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_PERIOD_MANAGE + "]");
+        // 承运商自己的指标与申诉入口（服务内再校验本人快照）
+        chain.addPathDefinition("/api/cold-chain/scores/my/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_MY + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/my",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_MY + "]");
+        // 申诉复核（QA/管理员；复核结论关联证据并产生改进任务）
+        chain.addPathDefinition("/api/cold-chain/scores/appeals/*/review",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_REVIEW + "]");
+        // 提交申诉（承运商；独立子路径，与 GET 列表的管理岗查看权限区分）
+        chain.addPathDefinition("/api/cold-chain/scores/appeals/submit",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_APPEAL + "]");
+        // 改进任务：完成确认 / 提醒重试 / 手动扫描
+        chain.addPathDefinition("/api/cold-chain/scores/tasks/*/done",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_TASK_HANDLE + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/tasks/*/remind-retry",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_TASK_REMIND + "]");
+        chain.addPathDefinition("/api/cold-chain/scores/tasks/remind-scan",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_PERIOD_MANAGE + "]");
+        // 评分台账只读（规则/周期/快照/申诉列表/任务列表）：管理岗全量视图
+        chain.addPathDefinition("/api/cold-chain/scores/**",
+                "authcBasic, perms[" + com.evops.coldchain.CcConstants.PERM_SCORE_VIEW + "]");
+
         // 冷链台账接口与管理页面使用 HTTP Basic，便于 curl/联调；浏览器会弹出登录框
         chain.addPathDefinition("/api/**", "authcBasic");
         chain.addPathDefinition("/ui/**", "authcBasic");

@@ -75,7 +75,11 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_FREIGHT_SETTLE_VIEW,
                 CcConstants.PERM_FREIGHT_SETTLE_GENERATE,
                 CcConstants.PERM_FREIGHT_SETTLE_DISPUTE,
-                CcConstants.PERM_FREIGHT_REPLAY)));
+                CcConstants.PERM_FREIGHT_REPLAY,
+                // V15：调度查看承运商评分台账、确认改进任务完成、重试逾期提醒
+                CcConstants.PERM_SCORE_VIEW,
+                CcConstants.PERM_SCORE_TASK_HANDLE,
+                CcConstants.PERM_SCORE_TASK_REMIND)));
         // 承运岗：温度超限/延误的处置岗位，可确认异常与提交处置结论；
         // V8：承运商并行提交报价
         put("carrier", 3L, "carrier123", "CARRIER", new LinkedHashSet<>(Arrays.asList(
@@ -93,7 +97,14 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_ESIGN_UPLOAD,
                 CcConstants.PERM_ESIGN_VIEW,
                 // V13：承运岗可查看授权范围内追溯图
-                CcConstants.PERM_TRACE_VIEW)));
+                CcConstants.PERM_TRACE_VIEW,
+                // V15：承运商只能查看自己的评分指标与申诉入口、提交申诉
+                CcConstants.PERM_SCORE_MY,
+                CcConstants.PERM_SCORE_APPEAL)));
+        // V15 第二个承运账号：授权另一家承运商（用于承运商数据隔离验收）
+        put("carrier2", 11L, "carrier123", "CARRIER", new LinkedHashSet<>(Arrays.asList(
+                CcConstants.PERM_SCORE_MY,
+                CcConstants.PERM_SCORE_APPEAL)));
         put("receiver", 4L, "receiver123", "RECEIVER",
                 new LinkedHashSet<>(Arrays.asList(
                         CcConstants.PERM_ALERT_VIEW,
@@ -158,7 +169,10 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_RETURN_EXPORT,
                 // V13：质量岗查看/导出追溯图（质量追溯与证据核对）
                 CcConstants.PERM_TRACE_VIEW,
-                CcConstants.PERM_TRACE_EXPORT)));
+                CcConstants.PERM_TRACE_EXPORT,
+                // V15：QA 复核承运商申诉（关联证据+产生改进任务）、查看评分台账
+                CcConstants.PERM_SCORE_VIEW,
+                CcConstants.PERM_SCORE_REVIEW)));
         // V7 监管岗：按批次抽检（立项/封存/双人转移/结论）+ 抽检台账导出 + 冷链运输审批；
         // 具体能访问哪些监管区域由 t_cc_inspector_region 授权（EAST/NORTH），查询再按区域隔离；
         // V8：可查看承运商报价/锁价台账（无业务操作权）
@@ -190,7 +204,9 @@ public class ColdChainRealm extends AuthorizingRealm {
                 CcConstants.PERM_FREIGHT_REPLAY,
                 // 财务可查看报价/锁价台账与追溯图用于对账（无业务操作权）
                 CcConstants.PERM_QUOTE_VIEW,
-                CcConstants.PERM_TRACE_VIEW)));
+                CcConstants.PERM_TRACE_VIEW,
+                // V15：财务可查看承运商评分台账（对账参考，无操作权）
+                CcConstants.PERM_SCORE_VIEW)));
         // V9 车载设备网关账号：仅设备温度数据上报权限
         put("device", 9L, "device123", "DEVICE", new LinkedHashSet<>(Arrays.asList(
                 CcConstants.PERM_DEVICE_INGEST)));

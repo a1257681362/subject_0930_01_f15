@@ -1304,3 +1304,109 @@ curl -u finance:finance123 -H 'Content-Type: application/json' -X POST \
 （1740×30%=522）逐单输出“新增扣罚”解释、净差异 -722.00 可对账；争议进入待复核时
 审核被拦截，财务复核“不计入”后应付重算回基础运费、原扣罚金额仍保留，审核冻结后
 再次回放差异恒 0、且不能重新生成结算。全套 75 个用例通过。
+
+## 冷链运输 V15：承运商服务评分
+
+在 V1~V14 台账上建立"承运商服务评分"：按评分周期对承运商考核**准时率、温控合格率、
+签收完整度、异常响应**四项指标并逐项取证；周期关闭生成**不可变快照**；承运商只能查看
+自己的指标与申诉入口；申诉期间原分数不回写，复核结论关联证据并产生改进任务；任务逾期
+自动提醒负责人；评分规则调整只影响下一周期。冷链药品运输外部依赖（提醒 webhook）无响应
+时，评分指标不得假装成功，恢复后也不能重复通知。
+
+### 核心规则
+
+- **四指标分别取证**（周期归属：批次按签收时间、异常按确认时间）：
+  准时率=签收时刻≤承诺到达时刻（无承诺时间的批次**无法取证**，不进分母）；
+  温控合格率=批次无温度超限异常；签收完整度=存在要素齐全（签收人/签名/照片/定位/双时间）
+  的电子回执；异常响应=确认时刻≤首次发现+响应时限快照。每项指标逐批次/逐异常落
+  `t_cc_score_evidence`（PASS/FAIL/UNEVALUABLE + 判定依据）。
+- **不得假装成功**：无法取证单独计数不进分母；指标无样本比率记 NULL 不参与总分；
+  四项全无样本总分记 NULL。总分=有样本指标按权重重归一化的加权平均。
+- **规则版本化，调整只影响下一周期**：`t_cc_score_rule` 版本只追加
+  （DRAFT→EFFECTIVE→SUPERSEDED，四权重合计 100 校验）；**周期开立时绑定**当前生效版本
+  并固化整版 JSON 快照，此后发布新版本只影响新开立的周期，在评周期与已生成快照口径不变。
+- **周期关闭生成不可变快照**：`t_cc_score_snapshot`（周期+承运商唯一约束兜底，重复关闭
+  拒绝）一次写入四指标比率/计数/总分/规则快照，应用层无更新/删除路径；申诉、复核结论、
+  纠正值一律不落快照表。
+- **承运商只能查看自己**：`t_cc_carrier_account` 维护账号→承运商授权（仿 V7 区域授权）；
+  `/scores/my` 只回带本承运商快照与申诉入口状态（窗口天数/截止/是否开放），
+  访问他人快照直接拒绝。新增账号 `carrier2/carrier123`（授权第二家演示承运商）。
+- **申诉期间原分数不回写**：申诉只追加 `t_cc_score_appeal`（本人物件+窗口期内+
+  同指标仅一条待复核）；复核结论 `t_cc_score_review`（只追加）**必须关联证据**、
+  复核人与申诉人不同账号，纠正值只落复核行；详情视图按"原值+最新复核结论"并列。
+- **复核产生改进任务**：`t_cc_improve_task`（负责人/截止时间，PENDING→DONE 只进不退），
+  逾期天数缺省取规则快照 `taskDueDays`。
+- **逾期自动提醒，失败不假装成功、恢复不重复**：定时扫描（`ScoreTaskRemindScheduler`，
+  默认 60s）对逾期未完成任务发提醒；每次尝试写 `t_cc_improve_notify_log`
+  （attempt_no 递增，失败记原因）；发送失败任务保持未提醒（NONE），**不假装成功**；
+  成功同事务写 `t_cc_improve_remind_dedup`（task_id 唯一）并置 SENT——外部依赖恢复后
+  **恰好一条成功通知，不重复**。手动重试必填原因，已成功送达拒绝重试。
+
+### 表结构增量（详见 schema.sql，版本标记 `cold-chain-15`）
+
+`t_cc_score_rule`（规则版本）、`t_cc_score_period`（周期，绑规则快照）、
+`t_cc_score_snapshot`（不可变快照）、`t_cc_score_evidence`（取证明细，只追加）、
+`t_cc_carrier_account`（账号→承运商授权，含种子）、`t_cc_score_appeal`（申诉）、
+`t_cc_score_review`（复核结论，只追加）、`t_cc_improve_task`（改进任务）、
+`t_cc_improve_notify_log`（提醒流水，只追加）、`t_cc_improve_remind_dedup`（提醒去重）；
+序列 `seq_cc_score_period_no/seq_cc_score_appeal_no/seq_cc_improve_task_no`
+（编号 `ZQ/SS/GJ`+8位）。种子：评分规则 V1（30/30/20/20，申诉窗口 7 天，任务 3 天逾期）。
+
+### 接口增量（均在 `/api/cold-chain/scores` 下，HTTP Basic）
+
+| 动作 | 方法与路径 | 权限 |
+| --- | --- | --- |
+| 规则列表 / 起草 / 发布 | `GET /rules` · `POST /rules/draft` · `POST /rules/{id}/publish` | 查看 / `coldchain:score:rule:manage` |
+| 周期开立 / 关闭（生成快照）/ 列表 | `POST /periods` · `POST /periods/{id}/close` · `GET /periods` | `coldchain:score:period:manage` / 查看 |
+| 全部快照台账 / 详情（取证+复核口径） | `GET /snapshots` · `GET /snapshots/{id}` | `coldchain:score:view` |
+| 承运商自己的指标+申诉入口 | `GET /my` · `GET /my/{snapshotId}` | `coldchain:score:my` |
+| 提交申诉 | `POST /appeals/submit` | `coldchain:score:appeal`（服务内校验本人+窗口期） |
+| 申诉复核（关联证据+产生改进任务） | `POST /appeals/{id}/review` | `coldchain:score:review`（非申诉人） |
+| 申诉列表 / 详情 | `GET /appeals` · `GET /appeals/{id}` | `coldchain:score:view` |
+| 改进任务列表 / 详情 / 完成确认 | `GET /tasks` · `GET /tasks/{id}` · `POST /tasks/{id}/done` | 查看 / `coldchain:score:task:handle` |
+| 提醒手动重试（必填原因）/ 手动扫描 | `POST /tasks/{id}/remind-retry` · `POST /tasks/remind-scan` | `coldchain:score:task:remind` / 周期管理 |
+
+示例（开周期 → 关闭出快照 → 承运商查看并申诉 → QA 复核产生改进任务）：
+
+```bash
+# 管理员开立并关闭评分周期（关闭即生成各承运商不可变快照+逐项取证）
+curl -u admin:admin123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/scores/periods -d \
+  '{"periodName":"2026-10月第一周期","periodStart":"2026-10-01T00:00:00","periodEnd":"2026-11-01T00:00:00"}'
+curl -u admin:admin123 -X POST http://localhost:8080/api/cold-chain/scores/periods/1/close
+
+# 承运商只能查看自己的指标与申诉入口
+curl -u carrier:carrier123 http://localhost:8080/api/cold-chain/scores/my
+
+# 承运商对准时率提交申诉（窗口期内；申诉期间原分数不回写）
+curl -u carrier:carrier123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/scores/appeals/submit -d \
+  '{"snapshotId":1,"metricType":"ON_TIME","reason":"高速管制不可抗力，已提前报备",
+    "evidenceRefs":"管制通告#A2026-1001"}'
+
+# QA 复核：结论关联证据 + 纠正值（只落复核行）+ 产生改进任务
+curl -u qa:qa123 -H 'Content-Type: application/json' -X POST \
+  http://localhost:8080/api/cold-chain/scores/appeals/1/review -d \
+  '{"conclusion":"UPHELD","reviewNote":"管制通告与报备记录齐备，准时率纠正为100",
+    "evidenceRefs":"管制通告#A2026-1001、气象记录#W77",
+    "correctedRate":100.00,"correctedTotalScore":66.67,
+    "tasks":[{"title":"补充延误报备流程","content":"建立高速管制提前报备SOP","ownerName":"冷经理"}]}'
+
+# 任务逾期自动提醒负责人；外部依赖失败只留失败流水（不假装成功），恢复后恰好一条成功通知
+curl -u admin:admin123 -X POST http://localhost:8080/api/cold-chain/scores/tasks/remind-scan
+```
+
+定时提醒可通过配置开关：`coldchain.score-remind.enabled`（默认 `true`）、
+`coldchain.score-remind.fixed-delay-ms`（默认 60000）、`initial-delay-ms`（默认 25000）。
+
+### V15 验收
+
+`CarrierScoreIntegrationTest`（6 个用例，内存 H2 + 真实 Shiro HTTP Basic + 可控通知通道
+替身，Mapper 直查物理表）覆盖：规则版本化与周期绑定（调整只影响下一周期，权重合计 100
+校验）；关闭周期生成快照（四指标分别取证：准时 PASS/FAIL/无承诺时间 UNEVALUABLE 不进分母、
+温控异常取证、回执要素完整度、异常响应时限快照比对，加权总分按周期绑定权重）；快照不可变
+（重复关闭拒绝、申诉/复核前后逐字段一致）与承运商隔离（只见自己、越权拒绝、管理岗全量）；
+申诉不回写 + 复核关联证据 + 纠正值只落复核行 + 改进任务生成（窗口外/重复/自复核/承运商
+复核全拒绝）；逾期提醒外部依赖失败不假装成功（任务保持未提醒、失败流水留痕）、恢复后
+恰好一条成功通知（去重登记兜底、再扫描零新增、成功后重试拒绝）、任务完成只进不退；
+以及 401/403/200 权限矩阵。

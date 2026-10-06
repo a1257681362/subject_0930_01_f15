@@ -695,4 +695,70 @@ public final class CcConstants {
     public static final String PERM_FREIGHT_SETTLE_AUDIT = "coldchain:freight:settle:audit";
     /** 旧数据回放（运营/财务；按新版本模拟并解释差异） */
     public static final String PERM_FREIGHT_REPLAY = "coldchain:freight:replay";
+
+    // —— V15 承运商服务评分 ——
+    // 指标类型：准时率 / 温控合格率 / 签收完整度 / 异常响应
+    public static final String METRIC_ON_TIME = "ON_TIME";
+    public static final String METRIC_TEMP_CONTROL = "TEMP_CONTROL";
+    public static final String METRIC_SIGN_COMPLETE = "SIGN_COMPLETE";
+    public static final String METRIC_EXCEPTION_RESPONSE = "EXCEPTION_RESPONSE";
+
+    // 取证判定：PASS 通过 / FAIL 未过 / UNEVALUABLE 无法取证（不进分母，不假装成功）
+    public static final String EVIDENCE_PASS = "PASS";
+    public static final String EVIDENCE_FAIL = "FAIL";
+    public static final String EVIDENCE_UNEVALUABLE = "UNEVALUABLE";
+
+    // 评分周期状态：OPEN 在评 / CLOSED 已关闭（快照已生成，不可重开）
+    public static final String PERIOD_OPEN = "OPEN";
+    public static final String PERIOD_CLOSED = "CLOSED";
+
+    // 申诉状态：PENDING 待复核 / UPHELD 申诉成立 / REJECTED 申诉驳回
+    public static final String APPEAL_PENDING = "PENDING";
+    public static final String APPEAL_UPHELD = "UPHELD";
+    public static final String APPEAL_REJECTED = "REJECTED";
+
+    // 改进任务状态：PENDING 待完成 / DONE 已完成（只进不退）
+    public static final String TASK_PENDING = "PENDING";
+    public static final String TASK_DONE = "DONE";
+
+    // 逾期提醒状态：NONE 未提醒 / SENT 已提醒（发送失败不置 SENT，不假装成功）
+    public static final String REMIND_NONE = "NONE";
+    public static final String REMIND_SENT = "SENT";
+
+    // V15 操作日志实体类型
+    public static final String ENT_SCORE_RULE = "SCORE_RULE";
+    public static final String ENT_SCORE_PERIOD = "SCORE_PERIOD";
+    public static final String ENT_SCORE_SNAPSHOT = "SCORE_SNAPSHOT";
+    public static final String ENT_SCORE_APPEAL = "SCORE_APPEAL";
+    public static final String ENT_IMPROVE_TASK = "IMPROVE_TASK";
+
+    // V15 操作动作
+    public static final String ACT_SCORE_RULE_DRAFT = "SCORE_RULE_DRAFT";
+    public static final String ACT_SCORE_RULE_PUBLISH = "SCORE_RULE_PUBLISH";
+    public static final String ACT_SCORE_PERIOD_OPEN = "SCORE_PERIOD_OPEN";
+    public static final String ACT_SCORE_PERIOD_CLOSE = "SCORE_PERIOD_CLOSE";
+    public static final String ACT_SCORE_APPEAL_SUBMIT = "SCORE_APPEAL_SUBMIT";
+    public static final String ACT_SCORE_APPEAL_REVIEW = "SCORE_APPEAL_REVIEW";
+    public static final String ACT_IMPROVE_TASK_CREATE = "IMPROVE_TASK_CREATE";
+    public static final String ACT_IMPROVE_TASK_DONE = "IMPROVE_TASK_DONE";
+    public static final String ACT_IMPROVE_TASK_REMIND = "IMPROVE_TASK_REMIND";
+    public static final String ACT_IMPROVE_TASK_REMIND_RETRY = "IMPROVE_TASK_REMIND_RETRY";
+
+    // —— V15 Shiro 权限点 ——
+    /** 评分规则维护（起草/发布新版本；只影响下一周期） */
+    public static final String PERM_SCORE_RULE_MANAGE = "coldchain:score:rule:manage";
+    /** 评分周期开立/关闭（关闭生成不可变快照） */
+    public static final String PERM_SCORE_PERIOD_MANAGE = "coldchain:score:period:manage";
+    /** 评分台账查看（管理岗全量视图） */
+    public static final String PERM_SCORE_VIEW = "coldchain:score:view";
+    /** 承运商查看自己的指标与申诉入口 */
+    public static final String PERM_SCORE_MY = "coldchain:score:my";
+    /** 承运商提交申诉 */
+    public static final String PERM_SCORE_APPEAL = "coldchain:score:appeal";
+    /** 申诉复核（复核结论关联证据并产生改进任务） */
+    public static final String PERM_SCORE_REVIEW = "coldchain:score:review";
+    /** 改进任务完成确认 */
+    public static final String PERM_SCORE_TASK_HANDLE = "coldchain:score:task:handle";
+    /** 逾期提醒手动重试 */
+    public static final String PERM_SCORE_TASK_REMIND = "coldchain:score:task:remind";
 }
